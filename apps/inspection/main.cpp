@@ -136,10 +136,13 @@ int main(int argc, char** argv)
         worstMs = std::max(worstMs, r.ms.total);
         const bool over = r.ms.total > cfg.frameBudgetMs;
         overBudget += over;
-        std::printf("%s  %-14s score=%.3f  gray=%.2f missing=%.2f scratch=%.2f total=%.2f ms%s\n",
+        char clahe[32] = "";
+        if (cfg.claheBackend != inspection::Config::CLAHE_NONE)
+            std::snprintf(clahe, sizeof(clahe), " clahe=%.2f", r.ms.clahe);
+        std::printf("%s  %-14s score=%.3f  gray=%.2f%s missing=%.2f scratch=%.2f total=%.2f ms%s\n",
                     baseName(path).c_str(),
                     r.ok ? "OK" : ("NOK: " + r.reason).c_str(), r.score,
-                    r.ms.gray, r.ms.missing, r.ms.scratch, r.ms.total,
+                    r.ms.gray, clahe, r.ms.missing, r.ms.scratch, r.ms.total,
                     over ? "  OVER BUDGET" : "");
         if (!outDir.empty())
         {

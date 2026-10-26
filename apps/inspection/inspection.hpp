@@ -15,6 +15,7 @@
 
 #include <opencv2/core.hpp>
 #include <opencv2/dnn.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace inspection {
 
@@ -33,6 +34,13 @@ struct Config
     bool mono = false;            // pixel_format: mono8 -> frames are 8-bit gray, used in place
     bool grayFromChannel = false; // bgr only. false: cvtColor BGR2GRAY, true: extractChannel
     int grayChannel = 1;          // used when grayFromChannel is true (0=B, 1=G, 2=R)
+
+    // Optional contrast-limited adaptive histogram equalization of the gray ROI, applied to
+    // live frames and the golden alike before check 1. Absent key -> CLAHE_NONE.
+    enum ClaheBackend { CLAHE_NONE, CLAHE_CPU, CLAHE_OPENCL, CLAHE_CUDA };
+    ClaheBackend claheBackend = CLAHE_NONE;
+    double claheClipLimit = 0;    // cv::CLAHE clip limit (contrast multiple per tile)
+    cv::Size claheTiles;          // tile grid; roi width/height must be multiples of it
 
     double diffThreshold = 0;     // threshold() level on |roi - golden|
     double maxDiffArea = 0;       // largest diff blob above this (px) -> NOK: MISSING
@@ -64,7 +72,7 @@ struct Config
 
 struct StageTimes
 {
-    double gray = 0, missing = 0, scratch = 0, total = 0; // milliseconds
+    double gray = 0, clahe = 0, missing = 0, scratch = 0, total = 0; // milliseconds
 };
 
 struct InspectionResult
@@ -77,11 +85,14 @@ struct InspectionResult
     StageTimes ms;
 };
 
+class Clahe;
+
 // Check 1: compare the part ROI against the golden reference.
 class MissingPartCheck
 {
 public:
-    MissingPartCheck(const Config& cfg, const cv::Mat& goldenBgr);
+    // clahe: applied to the golden ROI here when enabled, as Inspector does to every frame.
+    MissingPartCheck(const Config& cfg, const cv::Mat& goldenBgr, Clahe& clahe);
     // roiGray: grayscale ROI. Returns true if a part is missing; box is ROI-relative.
     bool run(const cv::Mat& roiGray, cv::Rect& box, double& area);
     // Valid after run(): |blurred roi - golden|, reused by the scratch check.
@@ -124,6 +135,47 @@ private:
     uint64_t posted_ = 0;
     bool stop_ = false;
     std::exception_ptr err_;
+};
+
+// CLAHE on the gray ROI (clahe: cpu | opencl | cuda), same result as cv::CLAHE for 8-bit input.
+// cpu: per-tile LUTs, then a bilinear pass that blends the two tile rows once per image row;
+// both passes split into stripes on persistent workers (stripe_threads). cuda: one kernel for
+// the LUTs, one for the pass, buffers and stream created here. Neither allocates in apply().
+// opencl: cv::CLAHE on a UMat (Intel iGPU), which allocates per call.
+class Clahe
+{
+public:
+    explicit Clahe(const Config& cfg); // sized for cfg.roi
+    ~Clahe();
+    bool enabled() const { return cfg_.claheBackend != Config::CLAHE_NONE; }
+    // src: 8UC1, roi-sized, may be a view. The result is valid until the next call.
+    const cv::Mat& apply(const cv::Mat& src);
+
+private:
+    struct Pass : StripePool::Job
+    {
+        Clahe* self = nullptr;
+        bool lut = false;
+        void run(int y0, int y1) override { lut ? self->lutTiles(y0, y1) : self->interpRows(y0, y1); }
+    };
+    struct Cuda;
+    void lutTiles(int k0, int k1);   // tiles [k0, k1) of src_ -> lut_ rows
+    void interpRows(int y0, int y1); // image rows [y0, y1) of src_ -> dst_
+
+    const Config& cfg_;
+    cv::Size tile_;
+    int clipLimit_ = 0;
+    float scale_ = 0.f;
+    const cv::Mat* src_ = nullptr;
+    cv::Mat dst_, lut_;              // lut_: one 256-entry row per tile
+    std::vector<int> ind1_, ind2_;   // per column: left/right tile LUT offset
+    std::vector<int> spanEnd_;       // per column: end of its run of equal (ind1_, ind2_)
+    std::vector<float> xa_, xa1_;    // per column: right/left tile weight
+    Pass lutPass_, interpPass_;
+    std::unique_ptr<StripePool> pool_; // cpu, stripe_threads > 1 only
+    std::unique_ptr<Cuda> cuda_;
+    cv::Ptr<cv::CLAHE> ocl_;
+    cv::UMat usrc_, udst_;
 };
 
 // Check 2 (scratch_method: diff): thin, elongated blobs in check 1's difference image.
@@ -185,6 +237,7 @@ public:
 
 private:
     const Config& cfg_;
+    Clahe clahe_;              // before missing_: it equalizes the golden
     MissingPartCheck missing_; // before scratchDiff_: it is built from missing_.golden()
     ScratchDiffCheck scratchDiff_;
     ScratchCheck scratch_;

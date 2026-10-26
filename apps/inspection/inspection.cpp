@@ -82,6 +82,34 @@ Config Config::load(const std::string& path)
             readRequired(root, "gray_channel", c.grayChannel);
     }
 
+    // Optional CLAHE before check 1 (absent -> none).
+    if (!root["clahe"].empty())
+    {
+        std::string clahe;
+        root["clahe"] >> clahe;
+        if (clahe == "cpu")
+            c.claheBackend = Config::CLAHE_CPU;
+        else if (clahe == "opencl")
+            c.claheBackend = Config::CLAHE_OPENCL;
+        else if (clahe == "cuda")
+            c.claheBackend = Config::CLAHE_CUDA;
+        else if (clahe != "none")
+            CV_Error(cv::Error::StsBadArg, "inspection config: clahe must be none, cpu, opencl or cuda");
+    }
+    if (c.claheBackend != Config::CLAHE_NONE)
+    {
+        std::vector<int> tiles;
+        readRequired(root, "clahe_clip_limit", c.claheClipLimit);
+        readRequired(root, "clahe_tiles", tiles);
+        CV_CheckEQ((int)tiles.size(), 2, "clahe_tiles must be [x, y]");
+        c.claheTiles = cv::Size(tiles[0], tiles[1]);
+        if (tiles[0] < 1 || tiles[1] < 1 || tiles[0] > 16 || tiles[1] > 16)
+            CV_Error(cv::Error::StsBadArg, "inspection config: clahe_tiles must be 1..16 each");
+        if (c.roi.width % tiles[0] != 0 || c.roi.height % tiles[1] != 0)
+            CV_Error(cv::Error::StsBadArg, "inspection config: roi width/height must be multiples of clahe_tiles");
+        CV_CheckGE(c.claheClipLimit, 0.0, "clahe_clip_limit must be >= 0");
+    }
+
     readRequired(root, "diff_threshold", c.diffThreshold);
     c.maxDiffArea = readPxOrMm(root, "max_diff_area", 2, pxPerMm);
     readRequired(root, "frame_budget_ms", c.frameBudgetMs);
@@ -166,7 +194,7 @@ static int countNonBelt(const cv::Mat& gray, const Config& cfg)
 }
 
 Inspector::Inspector(const Config& cfg, const cv::Mat& goldenBgr)
-    : cfg_(cfg), missing_(cfg, goldenBgr), scratchDiff_(cfg, missing_.golden()), scratch_(cfg)
+    : cfg_(cfg), clahe_(cfg), missing_(cfg, goldenBgr, clahe_), scratchDiff_(cfg, missing_.golden()), scratch_(cfg)
 {
 }
 
@@ -184,20 +212,29 @@ InspectionResult Inspector::inspectFrame(const cv::Mat& bgr)
     toGray(roi, gray_, cfg_);
     stage.stop(); r.ms.gray = stage.getTimeMilli(); stage.reset();
 
+    const cv::Mat* gray = &gray_;
+    if (clahe_.enabled())
+    {
+        stage.start();
+        gray = &clahe_.apply(gray_);
+        stage.stop(); r.ms.clahe = stage.getTimeMilli(); stage.reset();
+    }
+
     cv::Rect box;
     double area = 0;
     stage.start();
-    bool missing = missing_.run(gray_, box, area);
+    bool missing = missing_.run(*gray, box, area);
     stage.stop(); r.ms.missing = stage.getTimeMilli(); stage.reset();
 
     if (missing)
     {
         // Two-slot mode: an empty fixture differs everywhere AND is bare belt almost everywhere.
         // Anything else that differs this much (fragment, shifted part) stays MISSING, i.e.
-        // rejected. Runs only on this path, never on a good part.
+        // rejected. Runs only on this path, never on a good part. belt_gray is a raw gray level,
+        // so with CLAHE the test reads the unequalized (and unblurred) ROI.
         const bool empty = !cfg_.roi2.empty() &&
             missing_.diffPixels() > cfg_.emptyMinDiffFraction * cfg_.roi.area() &&
-            countNonBelt(missing_.blurred(), cfg_) <= cfg_.maxDiffArea;
+            countNonBelt(clahe_.enabled() ? gray_ : missing_.blurred(), cfg_) <= cfg_.maxDiffArea;
         if (empty)
         {
             r.present = false;

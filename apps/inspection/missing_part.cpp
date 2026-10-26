@@ -9,14 +9,14 @@
 
 namespace inspection {
 
-MissingPartCheck::MissingPartCheck(const Config& cfg, const cv::Mat& goldenBgr)
+MissingPartCheck::MissingPartCheck(const Config& cfg, const cv::Mat& goldenBgr, Clahe& clahe)
     : cfg_(cfg)
 {
     CV_CheckType(goldenBgr.type(), goldenBgr.type() == frameType(cfg), "golden type must match pixel_format");
     CV_Assert((cfg.roi & cv::Rect(0, 0, goldenBgr.cols, goldenBgr.rows)) == cfg.roi);
     cv::Mat gray;
     toGray(goldenBgr(cfg.roi), gray, cfg);
-    cv::GaussianBlur(gray, golden_, cv::Size(5, 5), 0);
+    cv::GaussianBlur(clahe.enabled() ? clahe.apply(gray) : gray, golden_, cv::Size(5, 5), 0);
 }
 
 bool MissingPartCheck::run(const cv::Mat& roiGray, cv::Rect& box, double& area)

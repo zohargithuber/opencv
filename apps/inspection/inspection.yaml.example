@@ -36,6 +36,19 @@ pixel_format: bgr
 gray_mode: bgr2gray
 gray_channel: 1
 
+# Optional CLAHE (contrast-limited adaptive histogram equalization) on the gray ROI before
+# check 1, applied to the golden the same way. none (default when absent) | cpu | opencl | cuda.
+#   cpu:    fixed buffers, no per-frame allocation; split over stripe_threads per part.
+#           SIMD: NEON on aarch64; build with CPU_BASELINE=AVX2 on Intel for 8-lane gathers.
+#   opencl: cv::CLAHE on a UMat (Intel iGPU); needs OpenCV WITH_OPENCL; allocates per frame.
+#   cuda:   NVIDIA GPU (Jetson, or x86 + dGPU); app built with nvcc; no per-frame allocation.
+# Enabling it changes diff levels: re-tune diff_threshold, scratch_diff_threshold and
+# empty_belt_tolerance (the empty-slot test then reads the raw, unblurred ROI).
+# roi width and height must be multiples of clahe_tiles.
+# clahe: cpu
+# clahe_clip_limit: 2.0            # TUNE
+# clahe_tiles: [ 8, 8 ]            # TUNE: 1..16 each
+
 # Check 1 (missing part): |blurred ROI - blurred golden ROI| > diff_threshold,
 # NOK when the largest differing blob exceeds max_diff_area pixels.  TUNE
 diff_threshold: 40
