@@ -1,0 +1,9 @@
+[
+  {"stage": "gray", "plane": "roi", "px_per_iter": 16, "block": "cv::impl::(anonymous namespace)::CvtColorLoop_Invoker<cv::hal::cpu_baseline::(anonymous namespace)::RGB2Gray<unsigned char> >::operator()_0x3d4c"},
+  {"stage": "missing", "plane": "roi", "px_per_iter": 16, "block": "cv::cpu_baseline::(anonymous namespace)::hlineSmooth5N14641<unsigned char, cv::(anonymous namespace)::ufixedpoint16>_0x22564"},
+  {"stage": "missing", "plane": "roi", "px_per_iter": 16, "block": "cv::cpu_baseline::(anonymous namespace)::vlineSmooth5N14641<unsigned char, cv::(anonymous namespace)::ufixedpoint16>_0x3a88"},
+  {"stage": "missing", "plane": "roi", "px_per_iter": 16, "block": "cv::ew::cpu_baseline::vecBinaryKernel<unsigned char, unsigned char, cv::hal_baseline::v_uint8x16, short, cv::ew::cpu_baseline::EwAbsdiff, unsigned char, cv::hal_baseline::v_uint8x16>_0x54564"},
+  {"stage": "missing", "plane": "roi", "px_per_iter": 16, "block": "cv::ThresholdRunner::operator()_0x2e5c"},
+  {"stage": "scratch", "plane": "roi", "px_per_iter": 16, "block": "inspection::ScratchDiffCheck::maskRows_0x1ec"},
+  {"stage": "scratch", "plane": "roi", "px_per_iter": 16, "block": "inspection::ScratchDiffCheck::run_0x854"}
+]

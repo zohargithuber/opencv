@@ -1,0 +1,6 @@
+function_name,execution_time_ns,std_dev_ns,fd_score,threshold,energy_ws
+cv::impl::(anonymous namespace)::CvtColorLoop_Invoker<cv::hal::cpu_baseline::(anonymous namespace)::RGB2Gray<unsigned char> >::operator()_0x3d4c,38,1188,20,12,7.278519999999999e-09
+"cv::cpu_baseline::(anonymous namespace)::hlineSmooth5N14641<unsigned char, cv::(anonymous namespace)::ufixedpoint16>_0x22564",14,613,18,12,2.6815599999999996e-09
+"cv::cpu_baseline::(anonymous namespace)::vlineSmooth5N14641<unsigned char, cv::(anonymous namespace)::ufixedpoint16>_0x3a88",16,372,18,12,3.06464e-09
+"cv::ew::cpu_baseline::vecBinaryKernel<unsigned char, unsigned char, cv::hal_baseline::v_uint8x16, short, cv::ew::cpu_baseline::EwAbsdiff, unsigned char, cv::hal_baseline::v_uint8x16>_0x54564",11,260,16,12,2.1069399999999998e-09
+cv::ThresholdRunner::operator()_0x2e5c,2,32,18,12,3.8308e-10

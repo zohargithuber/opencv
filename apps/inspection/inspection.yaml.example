@@ -1,0 +1,63 @@
+%YAML:1.0
+# Copy to inspection.yaml and set every value marked TUNE from real line data.
+# The TUNE values below are placeholders for the synthetic smoke test only.
+
+# Production spec (user, 2026-10-05): one frame must be fully inspected within 12 ms.
+frame_budget_ms: 12
+
+# Threads per part for the scratch pixel pass (persistent, created at startup). 1 = no extra
+# threads. Orin Nano (6 cores) with two parts per frame: 3.  TUNE
+stripe_threads: 1
+
+# Optional camera scale. Any of max_diff_area, scratch_min_length, scratch_edge_margin and
+# scratch_max_candidates may instead be given in mm (`<key>_mm`, areas `<key>_mm2`); they are
+# converted with px_per_mm, so one config carries across cameras.  TUNE
+# px_per_mm: 4.0
+
+# Part fixture location in the 1920x1080 frame: [x, y, width, height].  TUNE
+roi: [ 640, 300, 640, 480 ]
+
+# Optional: a second part in the same frame, inspected on a worker thread. Same size as roi,
+# no overlap. Leave commented out for one part per frame.  TUNE
+# roi_2: [ 1280, 300, 640, 480 ]
+# Required with roi_2. A slot is EMPTY (no part, nothing rejected) when check 1's diff covers
+# more than empty_min_diff_fraction of the ROI AND at most max_diff_area blurred pixels are
+# further than empty_belt_tolerance from belt_gray. A fragment or shifted part stays MISSING.
+# empty_min_diff_fraction: 0.25   # TUNE
+# belt_gray: 60                   # TUNE: gray level of the bare belt under the ring light
+# empty_belt_tolerance: 15        # TUNE
+
+# Camera pixel format. mono8: 8-bit gray frames used in place (no conversion, no copy;
+# recommended for the HD camera). bgr: 8-bit BGR, converted with gray_mode below.
+pixel_format: bgr
+
+# bgr only. bgr2gray = cv::cvtColor; channel = cv::extractChannel(gray_channel).
+# LOCI preflight: cvtColor BGR2GRAY is 47% of check 1, so compare both on real frames.
+gray_mode: bgr2gray
+gray_channel: 1
+
+# Check 1 (missing part): |blurred ROI - blurred golden ROI| > diff_threshold,
+# NOK when the largest differing blob exceeds max_diff_area pixels.  TUNE
+diff_threshold: 40
+max_diff_area: 400
+
+# Check 2 (scratch): none | diff | dnn.
+#   diff: thin, elongated blobs in check 1's |roi - golden| image (no model; bounded cost, no per-frame allocation).
+#   dnn:  ONNX classifier below (a 224x224 net likely exceeds the 12 ms budget on A53).
+scratch_method: diff
+
+# scratch_method: diff
+scratch_diff_threshold: 6          # TUNE: lowest level that finds faint scratches; noise is capped below
+scratch_min_length: 25             # TUNE: px, shortest scratch to reject
+scratch_min_elongation: 4          # TUNE: long side / short side of the blob
+scratch_edge_margin: 3             # TUNE: px around golden part edges to ignore (fixture jitter)
+scratch_max_candidates: 4000       # TUNE: most mask px examined per frame; above -> NOK: NOISY (bounds cost)
+
+# scratch_method: dnn
+model_path: ""
+model_input: [ 224, 224 ]          # TUNE: the model's native input size
+model_scale: 0.00392156862745098   # 1/255  TUNE: must match training preprocessing
+model_mean: [ 0, 0, 0 ]
+model_swap_rb: 1
+scratch_index: 1                   # output element holding P(scratch)
+scratch_threshold: 0.5             # TUNE on labelled validation frames

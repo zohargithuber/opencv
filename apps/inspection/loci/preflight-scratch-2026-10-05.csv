@@ -1,0 +1,7 @@
+function_name,execution_time_ns,std_dev_ns,fd_score,threshold,energy_ws
+cv::ThresholdRunner::operator()_0x2e5c,2,32,18,12,3.8308e-10
+cv::cpu_baseline::countNonZero8u_0x8f8,9,124,19,12,1.7238599999999999e-09
+"cv::ew::cpu_baseline::vecBinaryKernel<unsigned char, unsigned char, cv::hal_baseline::v_uint8x16, unsigned char, cv::ew::cpu_baseline::EwAnd, unsigned char, cv::hal_baseline::v_uint8x16>_0x510e8",4,48,17,12,7.6616e-10
+inspection::ScratchDiffCheck::run_0x364,7,73,18,12,1.3407799999999998e-09
+inspection::ScratchDiffCheck::maskRows_0x1ec,8,79,17,12,1.53232e-09
+inspection::ScratchDiffCheck::run_0x854,4,39,19,12,7.6616e-10
